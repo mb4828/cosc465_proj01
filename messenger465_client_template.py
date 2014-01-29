@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-__author__ = "jsommers@colgate.edu"
+__author__ = "mbrauner@colgate.edu"
 __doc__ = '''
 A simple model-view controller-based message board/chat client application.
 '''
