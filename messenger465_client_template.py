@@ -36,19 +36,20 @@ class MessageBoardNetwork(object):
         '''
 	print "getMessages called..."
 
-	# request messages from server and wait for response
+	# request messages from server
 	try:
         	self.sock.sendto("AGET",(self.host, self.port))
 	except Exception as varname:
 		return "ERROR server get failed"
 
-	(messages, serveraddr) = self.sock.recvfrom(1400)
-	#(messages, errlist,select([self.sock], messages, errlist, 0.1)
+	# wait for server response
+	(rlist, wlist, elist) = select([self.sock],[],[],0.1)
+	if len(rlist)>0:
+		(messages, serveraddr) = self.sock.recvfrom(1400)
+	else:
+		return "ERROR no response from server"
 
-	# return data (dropping the "AOK ")
-	if "ERROR " in messages:
-		return messages
-
+	# return data
 	return messages[4:]
 
     def postMessage(self, user, message):
@@ -69,18 +70,22 @@ class MessageBoardNetwork(object):
 
 	# create message string
         msgout = "APOST " + user + "::" + message
-	print "message out: " + msgout
 
 	# send message to server and wait for response
 	try:
 		self.sock.sendto(msgout, (self.host, self.port))
 	except Exception as varname:
-		return "ERROR server get failed"
+		return "ERROR server send failed"
 
-	(data, serveraddr) = self.sock.recvfrom(1400)
+	(rlist, wlist, elist) = select([self.sock],[],[],0.1)
+	if len(rlist)>0:
+		(data, serveraddr) = self.sock.recvfrom(1400)
+	else:
+		return "ERROR no response from server"
 
 	if data[0:6]=="AERROR":
 		return data
+
 	return 1
 
 class MessageBoardController(object):
@@ -109,7 +114,7 @@ class MessageBoardController(object):
         '''
 	print "post_message_callback called..."
 
-	# call post_message
+	# call postMessage
         rval = self.net.postMessage(self.name, m)
 
 	# check for errors and update status bar
@@ -118,7 +123,7 @@ class MessageBoardController(object):
 		self.view.setStatus("Message successfully posted")
 	else:
 		# failure :(
-		self.view.setStatus("Post message error: " + rval[6:])
+		self.view.setStatus(rval)
 
     def retrieve_messages(self):
         '''
@@ -141,20 +146,24 @@ class MessageBoardController(object):
 
         self.view.after(1000, self.retrieve_messages)
         messagedata = self.net.getMessages()
-	print messagedata
 
 	# check for errors
-	if messagedata[0:6]=="AERROR":
-		self.view.setStatus("Retrieve messages error: " + messagedata[6:])
+	if "ERROR" in messagedata[0:8]:
+		self.view.setStatus(messagedata)
 		return
-
+	
 	# reformat messages into a list of strings
 	messagedata = messagedata.split('::')
+
 	messagelist = []
 	i = 0
 	l = len(messagedata)
+	print "# of messages received: " + str(l/3) + ", m%3: " + str(l%3)
 
-	print "entering while loop"
+	if l%3 != 0:
+		self.view.setStatus("ERROR message data is corrupt")
+		return
+
 	while i<=(l-3):
 		messagelist.append(messagedata[i] + " " + messagedata[i+1] + " " + messagedata[i+2])
 		i+=3
