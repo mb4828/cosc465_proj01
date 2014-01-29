@@ -43,13 +43,13 @@ class MessageBoardNetwork(object):
 		return "ERROR server get failed"
 
 	(messages, serveraddr) = self.sock.recvfrom(1400)
-	print "received messages from server:\n" + messages
+	#(messages, errlist,select([self.sock], messages, errlist, 0.1)
 
-	# return data (dropping the "OK ")
+	# return data (dropping the "AOK ")
 	if "ERROR " in messages:
 		return messages
 
-	return messages[3:]
+	return messages[4:]
 
     def postMessage(self, user, message):
         '''
@@ -79,9 +79,8 @@ class MessageBoardNetwork(object):
 
 	(data, serveraddr) = self.sock.recvfrom(1400)
 
-	if "ERROR " in data:
+	if data[0:6]=="AERROR":
 		return data
-	
 	return 1
 
 class MessageBoardController(object):
@@ -118,9 +117,8 @@ class MessageBoardController(object):
 		# success!
 		self.view.setStatus("Message successfully posted")
 	else:
-		# failure
-		self.view.setStatus("Post message error: " + rval[7:]
-		
+		# failure :(
+		self.view.setStatus("Post message error: " + rval[6:])
 
     def retrieve_messages(self):
         '''
@@ -143,24 +141,23 @@ class MessageBoardController(object):
 
         self.view.after(1000, self.retrieve_messages)
         messagedata = self.net.getMessages()
+	print messagedata
 
 	# check for errors
-	if "ERROR " in messagedata:
-		self.view.setStatus("Retrieve messages error: " + messagedata[7:]
+	if messagedata[0:6]=="AERROR":
+		self.view.setStatus("Retrieve messages error: " + messagedata[6:])
 		return
 
 	# reformat messages into a list of strings
-	messagedata.split('::')
+	messagedata = messagedata.split('::')
 	messagelist = []
 	i = 0
 	l = len(messagedata)
 
-	if l>3:
-		while i<l:
-			messagelist[i] = messagedata[i] + " " + messagedata[i+1] + " " + messagedata[i+2]
-			i+=3
-
-	print messagelist
+	print "entering while loop"
+	while i<=(l-3):
+		messagelist.append(messagedata[i] + " " + messagedata[i+1] + " " + messagedata[i+2])
+		i+=3
 	
 	# update UI
 	self.view.setListItems(messagelist)
