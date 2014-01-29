@@ -43,10 +43,12 @@ class MessageBoardNetwork(object):
 		return "ERROR server get failed"
 
 	(messages, serveraddr) = self.sock.recvfrom(1400)
-	print "received messages from server:\n" + messages[3:]
+	print "received messages from server:\n" + messages
 
 	# return data (dropping the "OK ")
-	self.sock.close()
+	if "ERROR " in messages:
+		return messages
+
 	return messages[3:]
 
     def postMessage(self, user, message):
@@ -54,6 +56,8 @@ class MessageBoardNetwork(object):
         You should make calls to post messages to the message 
         board server here.
         '''
+	print "postMessage called..."
+
 	# check for errors
 	if len(user) > 8:
 		return "ERROR username too long"
@@ -61,18 +65,24 @@ class MessageBoardNetwork(object):
 		return "ERROR message length too long"
 	if "::" in message:
 		return "ERROR message contains reserved string, '::'"
+	print "no errors detected"
 
 	# create message string
         msgout = "APOST " + user + "::" + message
+	print "message out: " + msgout
 
 	# send message to server and wait for response
-	self.sock.sendto(msgout, (self.host, self.port))
+	try:
+		self.sock.sendto(msgout, (self.host, self.port))
+	except Exception as varname:
+		return "ERROR server get failed"
+
 	(data, serveraddr) = self.sock.recvfrom(1400)
 
-	if "ERROR" in data:
+	if "ERROR " in data:
 		return data
-	else:
-		return 1
+	
+	return 1
 
 class MessageBoardController(object):
     '''
@@ -98,7 +108,19 @@ class MessageBoardController(object):
         the message to the MessageBoardNetwork class via the
         postMessage method.
         '''
-        pass
+	print "post_message_callback called..."
+
+	# call post_message
+        rval = self.net.postMessage(self.name, m)
+
+	# check for errors and update status bar
+	if rval==1:
+		# success!
+		self.view.setStatus("Message successfully posted")
+	else:
+		# failure
+		self.view.setStatus("Post message error: " + rval[7:]
+		
 
     def retrieve_messages(self):
         '''
@@ -117,9 +139,33 @@ class MessageBoardController(object):
         which can be used to display any useful status information
         at the bottom of the GUI.
         '''
+	print "retrieve_messages called..."
+
         self.view.after(1000, self.retrieve_messages)
         messagedata = self.net.getMessages()
 
+	# check for errors
+	if "ERROR " in messagedata:
+		self.view.setStatus("Retrieve messages error: " + messagedata[7:]
+		return
+
+	# reformat messages into a list of strings
+	messagedata.split('::')
+	messagelist = []
+	i = 0
+	l = len(messagedata)
+
+	if l>3:
+		while i<l:
+			messagelist[i] = messagedata[i] + " " + messagedata[i+1] + " " + messagedata[i+2]
+			i+=3
+
+	print messagelist
+	
+	# update UI
+	self.view.setListItems(messagelist)
+	self.view.setStatus("Retrieved " + str(len(messagelist)) + " messages")
+		
 
 class MessageBoardView(Tkinter.Frame):
     '''
